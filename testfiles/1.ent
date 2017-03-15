@@ -1,0 +1,7 @@
+Main
+
+main:
+IO ()
+= do x <- readStr
+     y <- readStr
+     putStrLn (strToInt x + strToInt y)
