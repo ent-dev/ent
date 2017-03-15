@@ -1,0 +1,14 @@
+package ent
+
+pkgs = effects
+
+version = "0.0.1"
+
+sourcedir = src
+
+modules = Tools.Ent.Main
+
+executable = "ent"
+
+main = Tools.Ent.Main
+
