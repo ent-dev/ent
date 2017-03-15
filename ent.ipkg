@@ -6,7 +6,8 @@ version = "0.0.1"
 
 sourcedir = src
 
-modules = Tools.Ent.Main
+modules = Tools.Ent.Main,
+	  Tools.Ent.EState
 
 executable = "ent"
 
