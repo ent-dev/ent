@@ -6,31 +6,34 @@ import Effect.StdIO
 import Effect.State
 import Tools.Ent.EState
 
-fileContents : (fname : String) -> Eff () [STDIO, FILE (), STATE EState]
+data Label = LArgs | LEState
+
+fileContents : (fname : String) ->
+               Eff () [STDIO, FILE (), LEState ::: STATE EState]
 fileContents fn = do (Result str) <- readFile fn
+                     LEState :- put (
+                       record { scopes $= ((fn, str) ::) } !(LEState :- get))
                      pure ()
 
-printArgs : (List String) -> Eff () [STDIO, FILE (), STATE EState]
-printArgs [] = do pure ()
-printArgs (x :: xs) = do putStrLn x
-                         fileContents x                         
-                         printArgs xs
+collectContents : (List String) -> Eff () [STDIO, FILE (), LEState ::: STATE EState]
+collectContents [] = do pure ()
+collectContents (x :: xs) = do putStrLn x
+                               fileContents x
+                               collectContents xs
 
-smain : Eff () [STDIO, FILE (), STATE (List String), STATE EState]
+smain : Eff () [STDIO,
+                FILE (),
+                LArgs ::: STATE (List String),
+                LEState ::: STATE EState]
 smain = do putStrLn "Welcome to ent interactive!"
-           Success <- open "test.file" Read 
-             | (FError err) => do putStrLn "Error"
-                                  pure ()
-           (Result str) <- readLine
-           putStrLn str
            putStr "Ent>"
-           -- ch <- getChar
-           close
-           printArgs !get
+           collectContents !(LArgs :- get)
+           st <- LEState :- get
+           putStrLn $ show $ scopes st
            putStrLn "Bye"
+           pure ()
 
 main : IO ()
-main = do args <- getArgs
-          runInit [(), (), args, MkEState []] smain
+main = do (pr :: args) <- getArgs
+          runInit [(), (), LArgs := args, LEState := MkEState []] smain
           pure ()
-
