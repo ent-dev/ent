@@ -67,11 +67,42 @@ parse f input = let Id r = execParser f input in
     Success _ x => Right x
     Failure es  => Left es
 
+space : Monad m => Parser m Char
+space = satisfy isSpace
+
+anyAlphaChar : Monad m => Parser m Char
+anyAlphaChar = satisfy isAlpha
+
 char : Monad m => Char -> Parser m Char
 char ch = satisfy (== ch)
 
+dot : Monad m => Parser m Char
+dot = satisfy (== '.')
+
 charRep : Monad m => Char -> Parser m (List Char)
 charRep ch = many $ char ch
+
+upperChar : Monad m => Parser m Char
+upperChar = satisfy isUpper
+
+lowerChar : Monad m => Parser m Char
+lowerChar = satisfy isLower
+
+upperId : Monad m => Parser m String
+upperId = do fl <- upperChar
+             xs <- many $ anyAlphaChar
+             pure (pack $ fl :: xs)
+
+lowerId : Monad m => Parser m String
+lowerId = do fl <- lowerChar
+             xs <- many $ anyAlphaChar
+             pure (pack $ fl :: xs)
+
+moduleDecl : Monad m => Parser m String
+moduleDecl = do fp <- upperId
+                rems <- many (do dot; upperId)
+                pure (foldr (++) fp rems)
+
 
 string : Monad m => String -> Parser m String
 string s = pack <$> (traverse char $ unpack s)

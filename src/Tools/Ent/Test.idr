@@ -30,9 +30,6 @@ t2 = parse (chR 'c') "cccfjkd"
 t3 : ParserResult (List String)
 t3 = parse (strR "ab") "ababcd"
 
-t4 : ParserResult (List Char)
-t4 = parse wh "ccfjdk"
-
 main : IO ()
-main = do printLn t4
+main = do printLn $ parse moduleDecl "Tools.Compiler.Utils"
           pure ()
