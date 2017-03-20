@@ -31,5 +31,7 @@ t3 : ParserResult (List String)
 t3 = parse (strR "ab") "ababcd"
 
 main : IO ()
-main = do printLn $ parse moduleDecl "Tools.Compiler.Utils"
+main = do printLn $ parse scopeDecl "Tools.Compiler.Utils"
+          printLn $ parse simpleDef "ala = 8383"
+          printLn $ parse simpleDef "Ala = 8383"
           pure ()

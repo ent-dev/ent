@@ -73,11 +73,17 @@ space = satisfy isSpace
 anyAlphaChar : Monad m => Parser m Char
 anyAlphaChar = satisfy isAlpha
 
+digit : Monad m => Parser m Char
+digit = satisfy isDigit
+
 char : Monad m => Char -> Parser m Char
 char ch = satisfy (== ch)
 
 dot : Monad m => Parser m Char
 dot = satisfy (== '.')
+
+equals : Monad m => Parser m Char
+equals = satisfy (== '=')
 
 charRep : Monad m => Char -> Parser m (List Char)
 charRep ch = many $ char ch
@@ -98,11 +104,19 @@ lowerId = do fl <- lowerChar
              xs <- many $ anyAlphaChar
              pure (pack $ fl :: xs)
 
-moduleDecl : Monad m => Parser m String
-moduleDecl = do fp <- upperId
-                rems <- many (do dot; upperId)
-                pure (foldr (++) fp rems)
+namespace lang
+  scopeDecl : Monad m => Parser m String
+  scopeDecl = do fp <- upperId
+                 rems <- many (do dot; upperId)
+                 pure (foldr (++) fp rems)
 
+  simpleDef : Monad m => Parser m (String, String)
+  simpleDef = do it <- do lowerId <|> upperId
+                 many space
+                 equals
+                 many space
+                 xs <- many digit
+                 pure (it, pack xs)
 
 string : Monad m => String -> Parser m String
 string s = pack <$> (traverse char $ unpack s)
