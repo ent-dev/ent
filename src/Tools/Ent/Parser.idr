@@ -2,6 +2,8 @@ module Tools.Ent.Parser
 
 import public Control.Monad.Identity
 
+import Tools.Ent.AST
+
 data Result a = Success String a | Failure (List (String, String))
 
 export

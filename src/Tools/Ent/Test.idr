@@ -3,6 +3,8 @@ module Tools.Ent.Test
 import Control.Monad.Identity
 import Tools.Ent.Parser
 
+%access public export
+
 Parser : Type -> Type
 Parser = Parser Identity
 
