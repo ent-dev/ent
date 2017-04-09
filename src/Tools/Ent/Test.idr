@@ -2,6 +2,7 @@ module Tools.Ent.Test
 
 import Control.Monad.Identity
 import Tools.Ent.Parser
+import Tools.Ent.AST
 
 %access public export
 
@@ -20,6 +21,9 @@ chR ch = charRep ch
 str : String -> Parser String
 str s = string s
 
+nat : Parser PTerm
+nat = natural
+
 strR : String -> Parser (List String)
 strR s = stringRep s
 
@@ -32,8 +36,16 @@ t2 = parse (chR 'c') "cccfjkd"
 t3 : ParserResult (List String)
 t3 = parse (strR "ab") "ababcd"
 
+t4 : ParserResult PTerm
+t4 = parse opExpr "8"
+
+showb : Show b => Either a b -> IO ()
+showb (Right b) = putStrLn $ show b
+showb (Left a) = putStrLn "Parsing error"
+
 main : IO ()
-main = do printLn $ parse scopeDecl "Tools.Compiler.Utils"
-          printLn $ parse simpleDef "ala = 8383"
-          printLn $ parse simpleDef "Ala = 8383"
+main = do showb $ parse scopeDecl "Tools.Compiler.Utils"
+          showb $ parse simpleDef "ala = 8383"
+          showb $ parse simpleDef "Ala = 8383"
+          showb $ t4
           pure ()

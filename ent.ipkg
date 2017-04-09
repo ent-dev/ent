@@ -6,10 +6,15 @@ version = "0.0.1"
 
 sourcedir = src
 
-modules = Tools.Ent.Main,
-	  Tools.Ent.EState
+modules = Main,
+
+	  Tools.Ent.Main,
+	  Tools.Ent.AST,
+	  Tools.Ent.Compiler,
+	  Tools.Ent.Parser,
+
+	  Tools.Ent.Test
 
 executable = "ent"
 
 main = Tools.Ent.Main
-
