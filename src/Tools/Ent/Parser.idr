@@ -3,6 +3,7 @@ module Tools.Ent.Parser
 import public Control.Monad.Identity
 
 import Tools.Ent.AST
+import Debug.Trace
 
 data Result a = Success String a | Failure (List (String, String))
 
@@ -27,12 +28,16 @@ fail s = MkParser $ \r, succ, fail, inp => fail [(inp, s)]
 
 infixr 0 ~$
 infixl 4 <**>
+infixl 4 <**>|
 infixl 4 <$
 (~$) : (a -> b) -> a -> b
 (~$) f a = f a
 
 (<**>) : Applicative m => m a -> m (a -> b) -> m b
 (<**>) = liftA2 (flip (~$))
+
+(<**>|) : Applicative m => m a -> Lazy (m (a -> b)) -> m b
+(<**>|) f  g = liftA2 (flip (~$)) f (Force g)
 
 (<$) : Functor f => a -> f b -> f a
 (<$) = map . const
@@ -200,6 +205,10 @@ data Operator : (m : Type -> Type) -> a -> Type where
 OperatorTable : (Type -> Type) -> Type -> Type
 OperatorTable m a = List $ List $ Operator m a
 
+postfixOp : Monad m => String -> (PTerm -> PTerm) -> Operator (Parser m) PTerm
+postfixOp s f = Postfix $ do token (string s) someSpaces
+                             pure f
+
 prefixOp : Monad m => String -> (PTerm -> PTerm) -> Operator (Parser m) PTerm
 prefixOp s f = Prefix $ do string s
                            pure f
@@ -214,7 +223,8 @@ binaryOp name f    =  Infix (do token (string name) someSpaces
 table : Monad m => OperatorTable (Parser m) PTerm
 table = [[prefixOp "-"
                    (\t => PApp (PRef (UN "negate"))
-                               [MN ("arg = " ++ show t)])],
+                               [MN ("arg = " ++ show t)]),
+          postfixOp "++" (\t => PRef (UN $ "postfix ++" ++ show t))],
          [binaryOp "*" (\t1, t2 => PApp (PRef $ UN "mult")
                                         [MN ("arg1 = " ++ show t1),
                                          MN ("arg2 = " ++ show t2)]) AssocLeft,
@@ -235,7 +245,7 @@ mutual
                       -> (m (a), m (a))
                       -> m (a -> a)
   mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)
-    = ((flip <$> rassocOp) <*>
+    = trace "call mutual " $ (( flip <$> rassocOp) <*>
             (termP <**> (mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)))
 
                           <|> ambiguousLeft
@@ -246,7 +256,7 @@ mutual
                       -> (m (a), m (a))
                       -> m (a -> a)
   mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)
-    = (mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)) <|> pure id
+    = (mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)) <|> (trace "inf loop?" $ pure id)
 
 
 mutual
@@ -255,7 +265,7 @@ mutual
                       -> (m (a), m (a))
                       -> m (a -> a)
   mrl1 lassocOp termP (ambiguousRight, ambiguousNone)
-    = ((((flip <$> lassocOp) <*> termP) <**> ((.) <$> mrl2 lassocOp termP (ambiguousRight, ambiguousNone))))
+    = trace "call mutual " $ (((flip <$> lassocOp) <*> termP) {- <**> ((.) <$> (mrl1 lassocOp termP (ambiguousRight, ambiguousNone))-} <|> pure id)
 
   mrl2 : Alternative m => m (a -> a -> a)
                       -> m a
@@ -276,12 +286,15 @@ buildExpressionParser operators accExpression
         makeParser : (Alternative m, Parsing m) => m a -> List (Operator m a) -> m a
         makeParser term ops
           = let
+
                 (rassocOps,lassocOps,nassocOps,prefixOps,postfixOps) = foldr splitOps ([],[],[],[],[]) ops
+
                 rassocOp   = choice rassocOps
                 lassocOp   = choice lassocOps
                 nassocOp   = choice nassocOps
                 prefixOp   = choice prefixOps
                 postfixOp  = choice postfixOps
+
 
                 ambiguousRight    = ambiguous "right" rassocOp
                 ambiguousLeft     = ambiguous "left" lassocOp
@@ -293,18 +306,20 @@ buildExpressionParser operators accExpression
                 ambiguous2None     = ambiguous2 "non" nassocOp
 
 
+
+
                 postfixP   = postfixOp <|> pure id
 
                 prefixP    = prefixOp <|> pure id
 
                 termP      = (prefixP <*> term) <**> postfixP
 
-                rassocP  = mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)
+                -- rassocP  = mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)
 
                 -- rassocP1 = mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)
 
 
-                lassocP = mrl1 lassocOp termP (ambiguousRight, ambiguousNone)
+                -- lassocP = mrl1 lassocOp termP (ambiguousRight, ambiguousNone)
 
                 -- lassocP1 = mrl2 lassocOp termP (ambiguousRight, ambiguousNone)
 
@@ -315,7 +330,7 @@ buildExpressionParser operators accExpression
                 --               <|> pure id)
 
 
-            in termP -- <**> (rassocP <|> lassocP <|> pure id) <?> "operator"
+            in trace "created term " termP <**> ((mrl1 lassocOp termP (ambiguousRight, ambiguousNone)) <|> pure id) -- <?> "operator"
             where
               splitOps : Alternative m
                        => Operator m a
@@ -324,15 +339,15 @@ buildExpressionParser operators accExpression
               splitOps (Infix op assoc) (rassoc,lassoc,nassoc,pref,postfix)
                 = case assoc of
                     AssocNone  => (rassoc, lassoc, op::nassoc, pref, postfix)
-                    AssocLeft  => (rassoc,op::lassoc,nassoc,pref,postfix)
+                    AssocLeft  => trace "got left" (rassoc,op::lassoc,nassoc,pref,postfix)
                     AssocRight => (op::rassoc,lassoc,nassoc,pref,postfix)
               splitOps (Prefix op) (rassoc,lassoc,nassoc,pref,postfix)
-                = (rassoc,lassoc,nassoc,op::pref,postfix)
+                = trace "Got prefix " (rassoc,lassoc,nassoc,op::pref,postfix)
               splitOps (Postfix op) (rassoc,lassoc,nassoc,pref,postfix)
                 = (rassoc,lassoc,nassoc,pref,op::postfix)
 
               ambiguous : String -> m (a -> a -> a) -> m (a)
-              ambiguous assoc op = op *> empty <?> ("ambiguous use of a " ++ assoc ++ "-associative operator")
+              ambiguous assoc op =  trace "inside ambiguous" $ op *> empty <?> ("ambiguous use of a " ++ assoc ++ "-associative operator")
               ambiguous2 : String -> m (a -> a -> a) -> m (a -> a)
               ambiguous2 assoc op = op *> empty <?> ("ambiguous use of a " ++ assoc ++ "-associative operator")
 
@@ -371,8 +386,11 @@ f = id
 opp : Monad m => Parser m (PTerm)
 opp = ((choice tm <|> pure f) <*> natural) <**> (choice postm <|> pure id)
 
-opp2 : Monad m => Parser m (PTerm)
-opp2 = (pure id <*> opp)
+oppp : Monad m => Parser m PTerm -> Parser m (PTerm)
+oppp opp = ((choice postm <|> pure id) <*> opp) <**> (choice postm <|> pure id)
+
+opmany : Monad m => Parser m PTerm
+opmany = oppp $ oppp $ oppp $ oppp opp
 
 expr : Monad m => Parser m PTerm
 expr = natural
@@ -382,4 +400,18 @@ tmain = {-(choice []) <*> -}((choice tm <*> expr) <**> (choice postm))
 
 
 opExpr : Monad m => Parser m PTerm
-opExpr = buildExpressionParser leftops expr
+opExpr = buildExpressionParser table expr
+
+
+-- mutual
+--   m1 : Int
+--   m1 = m2
+
+--   m2 : Int
+--   m2 = m1
+
+-- a : Int
+-- a = let v = trace "let" 8 in v
+
+-- main : IO ()
+-- main = do putStrLn $ show a

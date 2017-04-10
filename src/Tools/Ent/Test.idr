@@ -36,8 +36,8 @@ t2 = parse (chR 'c') "cccfjkd"
 t3 : ParserResult (List String)
 t3 = parse (strR "ab") "ababcd"
 
-t4 : ParserResult PTerm
-t4 = parse opExpr "-8"
+tbep : String -> ParserResult PTerm
+tbep s = parse opExpr s
 
 showb : Show b => Either (List (String, String)) b -> IO ()
 showb (Right b) = putStrLn $ show b
@@ -51,8 +51,6 @@ main : IO ()
 main = do showb $ parse scopeDecl "Tools.Compiler.Utils"
           showb $ parse simpleDef "ala = 8383"
           showb $ parse simpleDef "Ala = 8383"
-          showb $ t4
-          showb $ parse (someSpaces *> lowerId) "   fjdls"
-
-          showb $ parse opp2 "-3"
+          showb $ tbep "-8++ + 3"
+          showb $ parse opmany "-3"
           pure ()
