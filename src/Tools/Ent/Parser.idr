@@ -111,6 +111,9 @@ space = satisfy isSpace
 skipMany : Monad m => Parser m a -> Parser m ()
 skipMany p = () <$ many p
 
+manySpaces : Monad m => Parser m ()
+manySpaces = skipMany space
+
 someSpaces : Monad m => Parser m ()
 someSpaces = space *> skipMany space
 
@@ -124,7 +127,7 @@ natural' : Monad m => Parser m (List Char)
 natural' = some digit
 
 natural : Monad m => Parser m PTerm
-natural = do n <- token natural' someSpaces
+natural = do n <- token natural' manySpaces
              pure $ PRef (UN $ pack n)
 
 char : Monad m => Char -> Parser m Char
@@ -198,7 +201,7 @@ OperatorTable : (Type -> Type) -> Type -> Type
 OperatorTable m a = List $ List $ Operator m a
 
 prefixOp : Monad m => String -> (PTerm -> PTerm) -> Operator (Parser m) PTerm
-prefixOp s f = Prefix $ do token (string s) someSpaces
+prefixOp s f = Prefix $ do string s
                            pure f
 
 binaryOp : Monad m => String
@@ -229,10 +232,10 @@ table = [[prefixOp "-"
 mutual
   mrr1 : Alternative m => m (a -> a -> a)
                       -> m a
-                      -> (m (a -> a), m (a -> a))
+                      -> (m (a), m (a))
                       -> m (a -> a)
   mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)
-    = (flip <$> rassocOp <*>
+    = ((flip <$> rassocOp) <*>
             (termP <**> (mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)))
 
                           <|> ambiguousLeft
@@ -240,7 +243,7 @@ mutual
 
   mrr2 : Alternative m => m (a -> a -> a)
                       -> m a
-                      -> (m (a -> a), m (a -> a))
+                      -> (m (a), m (a))
                       -> m (a -> a)
   mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)
     = (mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)) <|> pure id
@@ -249,16 +252,14 @@ mutual
 mutual
   mrl1 : Alternative m => m (a -> a -> a)
                       -> m a
-                      -> (m (a -> a), m (a -> a))
+                      -> (m (a), m (a))
                       -> m (a -> a)
   mrl1 lassocOp termP (ambiguousRight, ambiguousNone)
-    = ((flip <$> lassocOp <*> termP) <**> ((.) <$> mrl2 lassocOp termP (ambiguousRight, ambiguousNone))
-                          <|> ambiguousRight
-                          <|> ambiguousNone)
+    = ((((flip <$> lassocOp) <*> termP) <**> ((.) <$> mrl2 lassocOp termP (ambiguousRight, ambiguousNone))))
 
   mrl2 : Alternative m => m (a -> a -> a)
                       -> m a
-                      -> (m (a -> a), m (a -> a))
+                      -> (m (a), m (a))
                       -> m (a -> a)
   mrl2 lassocOp termP (ambiguousRight, ambiguousNone)
     = (mrl1 lassocOp termP (ambiguousRight, ambiguousNone)) <|> pure id
@@ -300,20 +301,21 @@ buildExpressionParser operators accExpression
 
                 rassocP  = mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)
 
-                rassocP1 = mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)
+                -- rassocP1 = mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)
+
 
                 lassocP = mrl1 lassocOp termP (ambiguousRight, ambiguousNone)
 
-                lassocP1 = mrl2 lassocOp termP (ambiguousRight, ambiguousNone)
+                -- lassocP1 = mrl2 lassocOp termP (ambiguousRight, ambiguousNone)
 
-                nassocP = (flip <$> nassocOp <*> termP)
-                             <**> (ambiguous2Right
-                              <|> ambiguous2Left
-                              <|> ambiguous2None
-                              <|> pure id)
+                -- nassocP = (flip <$> nassocOp <*> termP)
+                --              <**> (ambiguous2Right
+                --               <|> ambiguous2Left
+                --               <|> ambiguous2None
+                --               <|> pure id)
 
 
-            in termP <**> (rassocP <|> lassocP <|> nassocP <|> pure id) <?> "operator"
+            in termP -- <**> (rassocP <|> lassocP <|> pure id) <?> "operator"
             where
               splitOps : Alternative m
                        => Operator m a
@@ -329,15 +331,55 @@ buildExpressionParser operators accExpression
               splitOps (Postfix op) (rassoc,lassoc,nassoc,pref,postfix)
                 = (rassoc,lassoc,nassoc,pref,op::postfix)
 
-              ambiguous : String -> m (a -> a -> a) -> m (a -> a)
+              ambiguous : String -> m (a -> a -> a) -> m (a)
               ambiguous assoc op = op *> empty <?> ("ambiguous use of a " ++ assoc ++ "-associative operator")
-              ambiguous2 : String -> m (a -> a -> a) -> m ((a -> a) -> a -> a)
+              ambiguous2 : String -> m (a -> a -> a) -> m (a -> a)
               ambiguous2 assoc op = op *> empty <?> ("ambiguous use of a " ++ assoc ++ "-associative operator")
 
+leftops : Monad m => OperatorTable (Parser m) PTerm
+leftops = 1 `drop` table
+
+splitOps : Alternative m
+                       => Operator m a
+                       -> ((List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a)), (List $ m (a -> a)))
+                       -> ((List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a)), (List $ m (a -> a)))
+splitOps (Infix op assoc) (rassoc,lassoc,nassoc,pref,postfix)
+                = case assoc of
+                    AssocNone  => (rassoc, lassoc, op::nassoc, pref, postfix)
+                    AssocLeft  => (rassoc,op::lassoc,nassoc,pref,postfix)
+                    AssocRight => (op::rassoc,lassoc,nassoc,pref,postfix)
+splitOps (Prefix op) (rassoc,lassoc,nassoc,pref,postfix)
+                = (rassoc,lassoc,nassoc,op::pref,postfix)
+splitOps (Postfix op) (rassoc,lassoc,nassoc,pref,postfix)
+                = (rassoc,lassoc,nassoc,pref,op::postfix)
+
+
+test : PTerm -> PTerm
+test = (\t => PApp (PRef (UN "negate"))
+                               [MN ("arg = " ++ show t)])
+
+tm : Monad m => List $ Parser m (PTerm -> PTerm)
+tm = [(do string "-"
+          pure test)]
+
+postm : Monad m => List $ Parser m (PTerm -> PTerm)
+postm = []
+
+f : a -> a
+f = id
+
+opp : Monad m => Parser m (PTerm)
+opp = ((choice tm <|> pure f) <*> natural) <**> (choice postm <|> pure id)
+
+opp2 : Monad m => Parser m (PTerm)
+opp2 = (pure id <*> opp)
 
 expr : Monad m => Parser m PTerm
 expr = natural
 
+tmain : Monad m => Parser m PTerm
+tmain = {-(choice []) <*> -}((choice tm <*> expr) <**> (choice postm))
+
 
 opExpr : Monad m => Parser m PTerm
-opExpr = buildExpressionParser table expr
+opExpr = buildExpressionParser leftops expr

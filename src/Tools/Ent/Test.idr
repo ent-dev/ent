@@ -37,15 +37,22 @@ t3 : ParserResult (List String)
 t3 = parse (strR "ab") "ababcd"
 
 t4 : ParserResult PTerm
-t4 = parse opExpr "8"
+t4 = parse opExpr "-8"
 
-showb : Show b => Either a b -> IO ()
+showb : Show b => Either (List (String, String)) b -> IO ()
 showb (Right b) = putStrLn $ show b
-showb (Left a) = putStrLn "Parsing error"
+showb (Left a) = putStrLn $ show a
+
+Show (PTerm -> PTerm) where
+  show a = "PT -> PT"
+
 
 main : IO ()
 main = do showb $ parse scopeDecl "Tools.Compiler.Utils"
           showb $ parse simpleDef "ala = 8383"
           showb $ parse simpleDef "Ala = 8383"
           showb $ t4
+          showb $ parse (someSpaces *> lowerId) "   fjdls"
+
+          showb $ parse opp2 "-3"
           pure ()
