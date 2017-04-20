@@ -265,7 +265,7 @@ mutual
                       -> (m (a), m (a))
                       -> m (a -> a)
   mrl1 lassocOp termP (ambiguousRight, ambiguousNone)
-    = trace "call mutual " $ (((flip <$> lassocOp) <*> termP) {- <**> ((.) <$> (mrl1 lassocOp termP (ambiguousRight, ambiguousNone))-} <|> pure id)
+    = trace "call mutual " $ (((flip <$> lassocOp) <*> termP) <**> ((.) <$> (mrl1 lassocOp termP (ambiguousRight, ambiguousNone)) <|> pure id))
 
   mrl2 : Alternative m => m (a -> a -> a)
                       -> m a
@@ -401,6 +401,39 @@ tmain = {-(choice []) <*> -}((choice tm <*> expr) <**> (choice postm))
 
 opExpr : Monad m => Parser m PTerm
 opExpr = buildExpressionParser table expr
+
+binoperator : Monad m => Operator (Parser m) PTerm
+binoperator = binaryOp "+" (\t1, t2 => PApp (PRef $ UN "plus")
+                                        [MN ("arg1 = " ++ show t1),
+                                         MN ("arg2 = " ++ show t2)]) AssocLeft
+
+plusOp : Monad m => Parser m (PTerm -> PTerm -> PTerm)
+plusOp = do token (string "+") someSpaces
+            pure (\t1, t2 => PApp (PRef $ UN "plus")
+                                        [MN ("arg1 = " ++ show t1),
+                                         MN ("arg2 = " ++ show t2)])
+
+infixl 4 <$>|
+(<$>|) : Functor f => f a  -> (Lazy (f a)) -> (func : a -> b) -> f b
+(<$>|) t x fun = ?rhs
+
+lmap : (Functor f, f1) => (a -> b) -> (Lazy $ f a) -> f a
+lmap f g = Functor.map f ?rhss
+
+
+
+lassocp : Alternative m => m (a -> a -> a)
+                      -> m a
+--                      -> (m (a), m (a))
+                      -> m (a -> a)
+lassocp lassocOp termP -- (ambiguousRight, ambiguousNone)
+    = trace "call mutual " $
+        (((flip <$> lassocOp) <*> termP) <**>
+         ((.) <$> (lassocp lassocOp termP) <|>  pure id))
+
+plusExpr : Monad m => Parser m PTerm
+plusExpr =  natural <**> (lassocp plusOp natural <|> pure id)
+
 
 
 -- mutual
