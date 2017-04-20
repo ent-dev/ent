@@ -3,6 +3,8 @@ module Tools.Ent.Parser
 import public Control.Monad.Identity
 
 import Tools.Ent.AST
+import Tools.Ent.Util
+
 import Debug.Trace
 
 data Result a = Success String a | Failure (List (String, String))
@@ -221,7 +223,13 @@ binaryOp name f    =  Infix (do token (string name) someSpaces
                                 pure f)
 
 table : Monad m => OperatorTable (Parser m) PTerm
-table = [[prefixOp "-"
+table = [[binaryOp "^"
+                   (\t1, t2 => PApp (PRef $ UN "exp")
+                                    [MN ("arg1 = " ++ show t1),
+                                     MN ("arg2 = " ++ show t2)])
+                   AssocRight],
+
+         [prefixOp "-"
                    (\t => PApp (PRef (UN "negate"))
                                [MN ("arg = " ++ show t)]),
           postfixOp "++" (\t => PRef (UN $ "postfix ++" ++ show t))],
@@ -243,36 +251,40 @@ mutual
   mrr1 : Alternative m => m (a -> a -> a)
                       -> m a
                       -> (m (a), m (a))
+                      -> Nat
                       -> m (a -> a)
-  mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)
-    = trace "call mutual " $ (( flip <$> rassocOp) <*>
-            (termP <**> (mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)))
+  mrr1 rassocOp termP (ambiguousLeft, ambiguousNone) n
+    = if n > 10 then pure id
+           else trace "call mutual " $ (( flip <$> rassocOp) <*>
+            (termP <**> (mrr1 rassocOp termP (ambiguousLeft, ambiguousNone) (n + 1) <|> pure id))
 
                           <|> ambiguousLeft
                           <|> ambiguousNone)
 
-  mrr2 : Alternative m => m (a -> a -> a)
-                      -> m a
-                      -> (m (a), m (a))
-                      -> m (a -> a)
-  mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)
-    = (mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)) <|> (trace "inf loop?" $ pure id)
+  -- mrr2 : Alternative m => m (a -> a -> a)
+  --                     -> m a
+  --                     -> (m (a), m (a))
+  --                     -> m (a -> a)
+  -- mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)
+  --   = (mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)) <|> (trace "inf loop?" $ pure id)
 
 
 mutual
   mrl1 : Alternative m => m (a -> a -> a)
                       -> m a
                       -> (m (a), m (a))
+                      -> Nat
                       -> m (a -> a)
-  mrl1 lassocOp termP (ambiguousRight, ambiguousNone)
-    = trace "call mutual " $ (((flip <$> lassocOp) <*> termP) <**> ((.) <$> (mrl1 lassocOp termP (ambiguousRight, ambiguousNone)) <|> pure id))
+  mrl1 lassocOp termP (ambiguousRight, ambiguousNone) n
+    = if n > 10 then pure id
+           else trace "call mutual " $ (((flip <$> lassocOp) <*> termP) <**> ((.) <$> ((mrl1 lassocOp termP (ambiguousRight, ambiguousNone) (n + 1)) <|> pure id)))
 
-  mrl2 : Alternative m => m (a -> a -> a)
-                      -> m a
-                      -> (m (a), m (a))
-                      -> m (a -> a)
-  mrl2 lassocOp termP (ambiguousRight, ambiguousNone)
-    = (mrl1 lassocOp termP (ambiguousRight, ambiguousNone)) <|> pure id
+  -- mrl2 : Alternative m => m (a -> a -> a)
+  --                     -> m a
+  --                     -> (m (a), m (a))
+  --                     -> m (a -> a)
+  -- mrl2 lassocOp termP (ambiguousRight, ambiguousNone)
+  --   = (mrl1 lassocOp termP (ambiguousRight, ambiguousNone)) <|> pure id
 
 
 
@@ -314,12 +326,12 @@ buildExpressionParser operators accExpression
 
                 termP      = (prefixP <*> term) <**> postfixP
 
-                -- rassocP  = mrr1 rassocOp termP (ambiguousLeft, ambiguousNone)
+                rassocP  = mrr1 rassocOp termP (ambiguousLeft, ambiguousNone) 0
 
                 -- rassocP1 = mrr2 rassocOp termP (ambiguousLeft, ambiguousNone)
 
 
-                -- lassocP = mrl1 lassocOp termP (ambiguousRight, ambiguousNone)
+                lassocP = mrl1 lassocOp termP (ambiguousRight, ambiguousNone) 0
 
                 -- lassocP1 = mrl2 lassocOp termP (ambiguousRight, ambiguousNone)
 
@@ -330,7 +342,7 @@ buildExpressionParser operators accExpression
                 --               <|> pure id)
 
 
-            in trace "created term " termP <**> ((mrl1 lassocOp termP (ambiguousRight, ambiguousNone)) <|> pure id) -- <?> "operator"
+            in trace "created term " termP <**> (rassocP <|> lassocP <|> pure id) -- <?> "operator"
             where
               splitOps : Alternative m
                        => Operator m a
@@ -413,38 +425,16 @@ plusOp = do token (string "+") someSpaces
                                         [MN ("arg1 = " ++ show t1),
                                          MN ("arg2 = " ++ show t2)])
 
-infixl 4 <$>|
-(<$>|) : Functor f => f a  -> (Lazy (f a)) -> (func : a -> b) -> f b
-(<$>|) t x fun = ?rhs
-
-lmap : (Functor f, f1) => (a -> b) -> (Lazy $ f a) -> f a
-lmap f g = Functor.map f ?rhss
-
-
-
 lassocp : Alternative m => m (a -> a -> a)
                       -> m a
+                      -> Nat
 --                      -> (m (a), m (a))
                       -> m (a -> a)
-lassocp lassocOp termP -- (ambiguousRight, ambiguousNone)
-    = trace "call mutual " $
-        (((flip <$> lassocOp) <*> termP) <**>
-         ((.) <$> (lassocp lassocOp termP) <|>  pure id))
+lassocp lassocOp termP n -- (ambiguousRight, ambiguousNone)
+    = if n > 10 then pure id
+         else trace "call mutual " $
+              (((flip <$> lassocOp) <*> termP) <**>
+               ((.) <$> ((lassocp lassocOp termP (n + 1)) <|>  pure id)))
 
 plusExpr : Monad m => Parser m PTerm
-plusExpr =  natural <**> (lassocp plusOp natural <|> pure id)
-
-
-
--- mutual
---   m1 : Int
---   m1 = m2
-
---   m2 : Int
---   m2 = m1
-
--- a : Int
--- a = let v = trace "let" 8 in v
-
--- main : IO ()
--- main = do putStrLn $ show a
+plusExpr =  natural <**> (lassocp plusOp natural 0 <|> pure id)

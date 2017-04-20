@@ -48,9 +48,9 @@ Show (PTerm -> PTerm) where
 
 
 main : IO ()
-main = do showb $ parse scopeDecl "Tools.Compiler.Utils"
-          showb $ parse simpleDef "ala = 8383"
-          showb $ parse simpleDef "Ala = 8383"
-          showb $ tbep "-8++ + 3"
-          showb $ parse opmany "-3"
+main = do --showb $ parse scopeDecl "Tools.Compiler.Utils"
+          --showb $ parse simpleDef "ala = 8383"
+          --showb $ parse simpleDef "Ala = 8383"
+          showb $ tbep  "2 ^ 3 ^ 8 + 4 * 5 ^ 3"
+          --showb $ parse opmany "-3"
           pure ()
