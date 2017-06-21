@@ -1,8 +1,0 @@
-Main
-
-Lib.Conversion._
-
-<- EntryPoint
-  main = do x <- readStr
-            y <- readStr
-            putStrLn (strToInt x + strToInt y)

@@ -1,6 +1,0 @@
-Lib.Conversion
-
-strToInt:
-String -> Int
-"1"    = 1
-"2"    = 2
