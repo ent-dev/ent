@@ -13,6 +13,7 @@ modules = Main,
 	  Tools.Ent.AST,
 	  Tools.Ent.Compiler,
 	  Tools.Ent.Parser,
+	  Tools.Ent.Codegen,
 	  Tools.Ent.STExt,
 
 	  Tools.Ent.Test
