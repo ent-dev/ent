@@ -133,9 +133,7 @@ digit = satisfy isDigit
 natural' : Monad m => Parser m (List Char)
 natural' = some digit
 
-natural : Monad m => Parser m PTerm
-natural = do n <- token natural' manySpaces
-             pure $ PRef (UN $ pack n)
+
 
 char : Monad m => Char -> Parser m Char
 char ch = satisfy (== ch)
@@ -167,24 +165,6 @@ lowerId : Monad m => Parser m String
 lowerId = do fl <- lowerChar
              xs <- many $ anyAlphaChar
              pure (pack $ fl :: xs)
-
-namespace lang
-  scopeDecl : Monad m => Parser m PTerm
-  scopeDecl = do fp <- upperId
-                 rems <- many (do dot; upperId)
-                 pure $ PScope (fp :: rems)
-
-  simpleDef : Monad m => Parser m PTerm
-  simpleDef = do it <- do lowerId <|> upperId
-                 many space
-                 equals
-                 many space
-                 xs <- many digit
-                 pure $ PSimpleExpr it (pack xs)
-
-
-
-
 
 stringRep : Monad m => String -> Parser m (List String)
 stringRep s = many $ string s
@@ -363,78 +343,139 @@ buildExpressionParser operators accExpression
               ambiguous2 : String -> m (a -> a -> a) -> m (a -> a)
               ambiguous2 assoc op = op *> empty <?> ("ambiguous use of a " ++ assoc ++ "-associative operator")
 
-leftops : Monad m => OperatorTable (Parser m) PTerm
-leftops = 1 `drop` table
+-- leftops : Monad m => OperatorTable (Parser m) PTerm
+-- leftops = 1 `drop` table
 
-splitOps : Alternative m
-                       => Operator m a
-                       -> ((List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a)), (List $ m (a -> a)))
-                       -> ((List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a)), (List $ m (a -> a)))
-splitOps (Infix op assoc) (rassoc,lassoc,nassoc,pref,postfix)
-                = case assoc of
-                    AssocNone  => (rassoc, lassoc, op::nassoc, pref, postfix)
-                    AssocLeft  => (rassoc,op::lassoc,nassoc,pref,postfix)
-                    AssocRight => (op::rassoc,lassoc,nassoc,pref,postfix)
-splitOps (Prefix op) (rassoc,lassoc,nassoc,pref,postfix)
-                = (rassoc,lassoc,nassoc,op::pref,postfix)
-splitOps (Postfix op) (rassoc,lassoc,nassoc,pref,postfix)
-                = (rassoc,lassoc,nassoc,pref,op::postfix)
-
-
-test : PTerm -> PTerm
-test = (\t => PApp (PRef (UN "negate"))
-                               [MN ("arg = " ++ show t)])
-
-tm : Monad m => List $ Parser m (PTerm -> PTerm)
-tm = [(do string "-"
-          pure test)]
-
-postm : Monad m => List $ Parser m (PTerm -> PTerm)
-postm = []
-
-f : a -> a
-f = id
-
-opp : Monad m => Parser m (PTerm)
-opp = ((choice tm <|> pure f) <*> natural) <**> (choice postm <|> pure id)
-
-oppp : Monad m => Parser m PTerm -> Parser m (PTerm)
-oppp opp = ((choice postm <|> pure id) <*> opp) <**> (choice postm <|> pure id)
-
-opmany : Monad m => Parser m PTerm
-opmany = oppp $ oppp $ oppp $ oppp opp
-
-expr : Monad m => Parser m PTerm
-expr = natural
-
-tmain : Monad m => Parser m PTerm
-tmain = {-(choice []) <*> -}((choice tm <*> expr) <**> (choice postm))
+-- splitOps : Alternative m
+--                        => Operator m a
+--                        -> ((List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a)), (List $ m (a -> a)))
+--                        -> ((List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a -> a)), (List $ m (a -> a)), (List $ m (a -> a)))
+-- splitOps (Infix op assoc) (rassoc,lassoc,nassoc,pref,postfix)
+--                 = case assoc of
+--                     AssocNone  => (rassoc, lassoc, op::nassoc, pref, postfix)
+--                     AssocLeft  => (rassoc,op::lassoc,nassoc,pref,postfix)
+--                     AssocRight => (op::rassoc,lassoc,nassoc,pref,postfix)
+-- splitOps (Prefix op) (rassoc,lassoc,nassoc,pref,postfix)
+--                 = (rassoc,lassoc,nassoc,op::pref,postfix)
+-- splitOps (Postfix op) (rassoc,lassoc,nassoc,pref,postfix)
+--                 = (rassoc,lassoc,nassoc,pref,op::postfix)
 
 
-opExpr : Monad m => Parser m PTerm
-opExpr = buildExpressionParser table expr
+-- test : PTerm -> PTerm
+-- test = (\t => PApp (PRef (UN "negate"))
+--                                [MN ("arg = " ++ show t)])
 
-binoperator : Monad m => Operator (Parser m) PTerm
-binoperator = binaryOp "+" (\t1, t2 => PApp (PRef $ UN "plus")
-                                        [MN ("arg1 = " ++ show t1),
-                                         MN ("arg2 = " ++ show t2)]) AssocLeft
+-- tm : Monad m => List $ Parser m (PTerm -> PTerm)
+-- tm = [(do string "-"
+--           pure test)]
 
-plusOp : Monad m => Parser m (PTerm -> PTerm -> PTerm)
-plusOp = do token (string "+") someSpaces
-            pure (\t1, t2 => PApp (PRef $ UN "plus")
-                                        [MN ("arg1 = " ++ show t1),
-                                         MN ("arg2 = " ++ show t2)])
 
-lassocp : Alternative m => m (a -> a -> a)
-                      -> m a
-                      -> Nat
---                      -> (m (a), m (a))
-                      -> m (a -> a)
-lassocp lassocOp termP n -- (ambiguousRight, ambiguousNone)
-    = if n > 10 then pure id
-         else trace "call mutual " $
-              (((flip <$> lassocOp) <*> termP) <**>
-               ((.) <$> ((lassocp lassocOp termP (n + 1)) <|>  pure id)))
+-- opp : Monad m => Parser m (PTerm)
+-- opp = ((choice tm <|> pure f) <*> natural) <**> (choice postm <|> pure id)
 
-plusExpr : Monad m => Parser m PTerm
-plusExpr =  natural <**> (lassocp plusOp natural 0 <|> pure id)
+-- oppp : Monad m => Parser m PTerm -> Parser m (PTerm)
+-- oppp opp = ((choice postm <|> pure id) <*> opp) <**> (choice postm <|> pure id)
+
+-- opmany : Monad m => Parser m PTerm
+-- opmany = oppp $ oppp $ oppp $ oppp opp
+
+-- tmain : Monad m => Parser m PTerm
+-- tmain = {-(choice []) <*> -}((choice tm <*> expr) <**> (choice postm))
+
+
+
+-- binoperator : Monad m => Operator (Parser m) PTerm
+-- binoperator = binaryOp "+" (\t1, t2 => PApp (PRef $ UN "plus")
+--                                         [MN ("arg1 = " ++ show t1),
+--                                          MN ("arg2 = " ++ show t2)]) AssocLeft
+
+-- plusOp : Monad m => Parser m (PTerm -> PTerm -> PTerm)
+-- plusOp = do token (string "+") someSpaces
+--             pure (\t1, t2 => PApp (PRef $ UN "plus")
+--                                         [MN ("arg1 = " ++ show t1),
+--                                          MN ("arg2 = " ++ show t2)])
+
+-- lassocp : Alternative m => m (a -> a -> a)
+--                       -> m a
+--                       -> Nat
+-- --                      -> (m (a), m (a))
+--                       -> m (a -> a)
+-- lassocp lassocOp termP n -- (ambiguousRight, ambiguousNone)
+--     = if n > 10 then pure id
+--          else trace "call mutual " $
+--               (((flip <$> lassocOp) <*> termP) <**>
+--                ((.) <$> ((lassocp lassocOp termP (n + 1)) <|>  pure id)))
+
+-- plusExpr : Monad m => Parser m PTerm
+-- plusExpr =  natural <**> (lassocp plusOp natural 0 <|> pure id)
+
+
+-- --------[Language]-------------------------------------------------------- --
+
+
+
+namespace lang
+
+  pnatural : Monad m => Parser m PTerm
+  pnatural = do n <- token natural' manySpaces
+                pure $ PRef (UN $ pack n)
+
+  pchar : Monad m => Parser m PTerm
+  pchar = do char '\''
+             ch <- satisfy (const True)
+             char '\''
+             pure $ PConstant EChar (cast ch ++ "")
+
+  pstring : Monad m => Parser m PTerm
+  pstring = do char '"'
+               chs <- many $ satisfy (/= '"')
+               char '"'
+               pure (PConstant EString $ pack chs)
+
+  -- booleancst : Monad m => Parser m PTerm
+  -- booleancst = (do s <- string "True"; pure (PConstant EBoolean "t")) <|>
+  --              (do s <- string "False"; pure (PConstant EBoolean "f"))
+
+  valCtor : Monad m => Parser m PTerm
+  valCtor = pnatural <|> pstring <|> pchar
+
+  opExpr : Monad m => Parser m PTerm
+  opExpr = buildExpressionParser table valCtor
+
+  scopeDecl : Monad m => Parser m PTerm
+  scopeDecl = do fp <- upperId
+                 rems <- many (do dot; upperId)
+                 pure $ PScope (fp :: rems)
+
+  -- simpleDef : Monad m => Parser m PTerm
+  -- simpleDef = do it <- lowerId
+  --                many space
+  --                equals
+  --                many space
+  --                xs <- many digit
+  --                pure $ PSimpleExpr it (pack xs)
+
+  valDef : Monad m => Parser m PTerm
+  valDef = do it <- lowerId
+              many space
+              equals
+              many space
+              et <- valCtor
+              pure $ PDef (UN it) [] et
+
+  printStmt : Monad m => Parser m PTerm
+  printStmt = do token (string "print") someSpaces
+                 s <- pstring
+                 many space
+                 pure s
+
+  pmain : Monad m => Parser m (List PTerm)
+  pmain = do token (string "main =") someSpaces
+             strs <- some $ token printStmt someSpaces
+             pure strs
+
+  progParser : Monad m => Parser m (PTerm, List PTerm, List PTerm)
+  progParser = do st <- token scopeDecl someSpaces
+                  defs <- many $ token valDef someSpaces
+                  strs <- pmain
+                  pure (st, defs, strs)

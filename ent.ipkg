@@ -1,6 +1,7 @@
 package ent
 
 pkgs = effects
+     , contrib
 
 version = "0.0.1"
 
@@ -12,6 +13,7 @@ modules = Main,
 	  Tools.Ent.AST,
 	  Tools.Ent.Compiler,
 	  Tools.Ent.Parser,
+	  Tools.Ent.STExt,
 
 	  Tools.Ent.Test
 
