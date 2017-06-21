@@ -2,6 +2,8 @@ module Tools.Ent.Test
 
 import Control.Monad.Identity
 import Tools.Ent.Parser
+import Tools.Ent.Parser.Core
+import Tools.Ent.Parser.API
 import Tools.Ent.AST
 
 %access public export
@@ -46,28 +48,8 @@ showb (Left a) = putStrLn $ show a
 Show (PTerm -> PTerm) where
   show a = "PT -> PT"
 
-tprog : String
-tprog = """Main.Scope
-
-f = 3 + 4
-
-g = "jfdlsj"
-
 main : IO ()
-main = <= print "Hello world"
-"""
-
-
-
-main : IO ()
-main = do --showb $ parse scopeDecl "Tools.Compiler.Utils"
-          --showb $ parse simpleDef "ala = 8383"
-          --showb $ parse simpleDef "Ala = 8383"
-          --showb $ tbep  "2 ^ 3 ^ 8 + 4 * 5 ^ 3"
-          --showb $ parse opmany "-3"
-          --showb $ tbep "32 + \"jdflk\""
-          --showb $ ppar tprog
-          (Right s) <- readFile "a.ent"
+main = do (Right s) <- readFile "a.ent"
             | Left err => putStrLn "Error reading file"
           showb $ ppar s
           pure ()
