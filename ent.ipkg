@@ -3,6 +3,8 @@ package ent
 pkgs = effects
      , contrib
 
+opts = "--ibcsubdir out"
+
 version = "0.0.1"
 
 sourcedir = src
