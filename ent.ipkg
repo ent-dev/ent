@@ -1,0 +1,28 @@
+package ent
+
+pkgs = effects
+     , contrib
+
+opts = "--ibcsubdir out"
+
+version = "0.0.1"
+
+sourcedir = src
+
+modules = Main,
+
+	  Tools.Ent.AST,
+	  Tools.Ent.Main,
+	  Tools.Ent.Compiler,
+	  Tools.Ent.Parser,
+	  Tools.Ent.Parser.Core,
+	  Tools.Ent.Parser.API,
+	  Tools.Ent.Parser.Expr,
+	  Tools.Ent.Codegen,
+	  Tools.Ent.STExt,
+
+	  Tools.Ent.Test
+
+executable = "ent"
+
+main = Main

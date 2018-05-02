@@ -1,0 +1,10 @@
+Test.Module
+
+f = 3
+
+g = 'a'
+
+h = "me and you"
+
+main = print "Hello world!"
+       print "How are you?"
