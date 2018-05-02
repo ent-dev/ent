@@ -25,4 +25,4 @@ modules = Main,
 
 executable = "ent"
 
-main = Tools.Ent.Main
+main = Main
